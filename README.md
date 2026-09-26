@@ -1,30 +1,30 @@
 # Calculus I LLM Evaluation
 
-This repository compares language models on a multiple-choice Calculus I dataset. It contains notebook-based evaluation pipelines for OpenAI, Anthropic Claude, and locally hosted Ollama models.
+This repository compares language models on a multiple-choice Calculus I dataset from the University of Houston. It contains notebook-based evaluation pipelines for OpenAI, Anthropic Claude, and locally hosted Ollama models.
 
 Every pipeline follows the same broad process:
 
 1. Load the evaluation dataset.
-2. Ask the selected model to solve each question and choose an answer.
+2. Ask the selected model to solve each question with a standardized prompt and example and choose an answer along with the explanation behind chosing the answer.
 3. Save each successful response to a checkpoint immediately.
 4. Normalize the predicted option letter.
 5. Compare predictions with the answer key.
 6. Export the complete results and the incorrect-answer subset.
 
-The notebooks currently use `df.head(10)`, so their default runs evaluate the first 10 questions rather than all 331 rows in the dataset.
+The notebooks currently use `df.head(10)`, so their default runs evaluate the first 10 questions rather than all rows in the dataset.
 
 ## Repository structure
 
 ```text
 .
-├── .env
+├── .env.example
 ├── README.md
 ├── requirements.txt
 ├── data/
-│   └── test3_input_subset_seed42_numq1 (clean testing dataset).csv
+│   └── input_data.csv
 ├── notebooks/
 │   ├── claude-structured-output-test.ipynb
-│   ├── ollama-structured-output-test.ipynb
+│   ├── ollama-unstructured-output-test.ipynb
 │   ├── openai-structured-output-test.ipynb
 │   └── openai-unstructured-output-test.ipynb
 └── output/
@@ -38,18 +38,18 @@ The `output/` subdirectories are generated from the model selected in each noteb
 
 ## Dataset
 
-The input file is:
+The dataset is not distributed with this repository. Obtain an authorized copy and place it at:
 
 ```text
-data/test3_input_subset_seed42_numq1 (clean testing dataset).csv
+data/input_data.csv
 ```
 
-It contains 331 rows and three columns:
+It contains 331 (after removing errors it contains 325) rows and three columns:
 
 | Column | Meaning |
 | --- | --- |
 | `ID` | Unique question identifier used as the checkpoint key |
-| `Question` | Calculus I multiple-choice prompt and options |
+| `Question` | Calculus I multiple-choice question and options in HTML with embedded LaTeX math format |
 | `Correct Answer` | Expected answer-choice letter |
 
 All notebooks locate the dataset relative to the repository root, so they can be launched from either the root directory or `notebooks/`.
@@ -59,9 +59,9 @@ All notebooks locate the dataset relative to the repository root, so they can be
 | Notebook | Default model | Response strategy | Service |
 | --- | --- | --- | --- |
 | `openai-unstructured-output-test.ipynb` | `gpt-4o-2024-08-06` | Generates a free-form solution, then uses `gpt-4o-mini` to extract a structured answer letter | OpenAI API |
-| `openai-structured-output-test.ipynb` | `gpt-5.6-sol` | Uses the Responses API with web search, requests JSON, and validates it locally with Pydantic | OpenAI API |
+| `openai-structured-output-test.ipynb` | `gpt-5-mini` | Uses the Responses API and validates it locally with Pydantic | OpenAI API |
 | `claude-structured-output-test.ipynb` | `claude-opus-4-5-20251101` | Uses `client.messages.parse()` with a Pydantic output model | Anthropic API |
-| `ollama-structured-output-test.ipynb` | `llama3.2:1b` + `gpt-4o-mini` | Ollama generates a free-form solution; `gpt-4o-mini` extracts the answer letter with structured output | Ollama + OpenAI APIs |
+| `ollama-unstructured-output-test.ipynb` | `llama3.2:1b` + `gpt-4o-mini` | Ollama generates a free-form solution; `gpt-4o-mini` extracts the answer letter with structured output | Ollama + OpenAI APIs |
 
 ### OpenAI unstructured output
 
@@ -74,7 +74,7 @@ This is a two-stage pipeline:
 
 The primary responses are checkpointed before extraction. A complete 10-question run normally makes up to 10 primary-model calls and 10 extraction-model calls. Both stages use `OPENAI_API_KEY` and may incur API charges.
 
-### OpenAI Responses/deep-research workflow
+### OpenAI structured output
 
 [Open the notebook](notebooks/openai-structured-output-test.ipynb)
 
@@ -92,7 +92,7 @@ It uses `ANTHROPIC_API_KEY` and makes billable Anthropic API calls.
 
 ### Ollama unstructured output with OpenAI extraction
 
-[Open the notebook](notebooks/ollama-structured-output-test.ipynb)
+[Open the notebook](notebooks/ollama-unstructured-output-test.ipynb)
 
 This notebook keeps the primary Ollama request unstructured because schema-constrained Ollama generations can stall. Ollama produces a free-form solution with temperature `0`; a separate `gpt-4o-mini` call then extracts `correct_option_choice_letter` using OpenAI structured output.
 
@@ -141,14 +141,14 @@ Select the **Calculus LLM Eval** kernel when opening a notebook.
 
 ## Environment variables
 
-Create or update `.env` in the repository root:
+Copy `.env.example` to `.env` in the repository root and fill in the required values:
 
 ```dotenv
 OPENAI_API_KEY=your_openai_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 ```
 
-Only add the key needed by the notebook you intend to run. The Ollama notebook now also needs `OPENAI_API_KEY` for its `gpt-4o-mini` extraction stage. The current `.env` also defines `GOOGLE_API_KEY` and `GROQ_API_KEY`, but no notebook in this repository uses them.
+Only add the key needed by the notebook you intend to run. The Ollama notebook also needs `OPENAI_API_KEY` for its `gpt-4o-mini` extraction stage.
 
 Never commit `.env` or share its contents. API keys should be revoked and replaced immediately if exposed.
 
@@ -172,12 +172,6 @@ If Ollama is already running as a background service, only the `pull` command is
 5. Run the notebook from top to bottom.
 6. Review the printed classification metrics and the files under `output/<model>/`.
 
-To evaluate all 331 questions, remove or change this line in the response-pipeline cell:
-
-```python
-df = df.head(10)
-```
-
 Full runs can create substantial API cost. Check provider pricing, model access, and rate limits before increasing the sample size.
 
 ## Model and artifact naming
@@ -200,7 +194,6 @@ output/<model-artifact-name>/
 └── <run-name>-test-output-incorrect.csv
 ```
 
-The OpenAI deep-research notebook uses `<model>-o3-subsample` as its run name. The unstructured, Claude, and Ollama notebooks use `<model>-subsample`.
 
 ## Checkpoints and resuming
 
@@ -227,7 +220,6 @@ The unstructured OpenAI checkpoint stores the primary response before answer ext
 }
 ```
 
-The Ollama checkpoint uses the same `Long Answer` shape for new records. The notebook also reads the two legacy structured Ollama records already present in `output/llama3.2-1b/` by falling back to their `detailed_solution_explanation` field.
 
 To rerun questions with the same model, move or rename the existing checkpoint first, or deliberately delete it after preserving anything needed. Changing `MODEL_NAME` automatically selects a different model-specific output directory.
 
@@ -247,17 +239,7 @@ The complete result CSV contains the source fields plus generated evaluation fie
 
 The `-test-output-incorrect.csv` file contains only rows where `Correct == 0`.
 
-The structured Claude and OpenAI Responses workflows report accuracy, weighted precision, weighted recall, weighted F1, and a classification report. The unstructured OpenAI and Ollama workflows currently report accuracy only.
-
-## Included output snapshots
-
-The repository currently includes completed 10-question result snapshots for:
-
-- `claude-opus-4-5-20251101`
-- `gpt-4o-2024-08-06`
-- `gpt-5.6-sol` with the `o3` run label
-
-It also includes an in-progress `llama3.2-1b` checkpoint with two responses and no exported result CSV yet. These files are experiment artifacts, not a claim about performance on the full 331-question dataset.
+The workflows report accuracy, weighted precision, weighted recall, weighted F1, and a classification report.
 
 ## Troubleshooting
 
@@ -296,7 +278,7 @@ Provider output may occasionally violate the schema. The Claude notebook catches
 - Local Ollama results depend on the installed model build, Ollama version, hardware, and runtime configuration.
 - Checkpoints prevent accidental duplicate calls but can mix results if prompt logic changes without changing `RUN_NAME`.
 - Record package versions, prompt revisions, run date, and model access settings when producing publishable comparisons.
-- The included outputs cover only 10 questions and should not be treated as full-dataset benchmark results.
+- Saved notebook outputs are cleared for publication. Generated results stay local under `output/`.
 
 ## API references
 
@@ -304,3 +286,15 @@ Provider output may occasionally violate the schema. The Claude notebook catches
 - [OpenAI structured outputs](https://platform.openai.com/docs/guides/structured-outputs)
 - [Anthropic structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
 - [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs)
+
+## Publication and data handling
+
+The repository ignores `.env` files, local datasets, generated responses, and notebook checkpoints. These exclusions do not remove files already committed to Git. Clear all notebook outputs before committing; outputs can contain dataset questions, answers, local paths, or service errors.
+
+Use only data approved for the selected provider. OpenAI and Claude workflows send questions to external APIs; the Ollama workflow sends generated solutions to OpenAI for answer extraction. The OpenAI Responses notebook also enables web search, so it should not receive confidential exam material.
+
+Treat generated CSV text as untrusted when opening it in spreadsheet software: import text columns as text to avoid interpreting formula-like content. Keep the Ollama server local and retain Jupyter authentication.
+
+Before each release, audit a fresh dependency resolution with `pip-audit -r requirements.txt` and scan the complete Git history for secrets. Requirements specify minimum versions rather than a reproducible lock; record the installed versions used for published experiments.
+
+Choose an appropriate code license and confirm permission to distribute the dataset and the few-shot example before publication. The repository currently contains no license file.

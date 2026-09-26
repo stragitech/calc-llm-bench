@@ -1,0 +1,23 @@
+# Credentials and local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Datasets and generated model responses require review before publication.
+/data/
+/output/
+
+# Notebook and Python runtime artifacts
+.ipynb_checkpoints/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local editor and operating-system metadata
+.DS_Store
+.vscode/
+.idea/
