@@ -2,22 +2,14 @@
 
 This repository compares language models on a multiple-choice Calculus I dataset from the University of Houston. It contains notebook-based evaluation pipelines for OpenAI, Anthropic Claude, and locally hosted Ollama models.
 
-Every pipeline follows the same broad process:
-
-1. Load the evaluation dataset.
-2. Ask the selected model to solve each question with a standardized prompt and example and choose an answer along with the explanation behind chosing the answer.
-3. Save each successful response to a checkpoint immediately.
-4. Normalize the predicted option letter.
-5. Compare predictions with the answer key.
-6. Export the complete results and the incorrect-answer subset.
-
 The notebooks currently use `df.head(10)`, so their default runs evaluate the first 10 questions rather than all rows in the dataset.
 
 ## Repository structure
 
 ```text
 .
-├── .env.example
+├── .env
+├── .gitignore
 ├── README.md
 ├── requirements.txt
 ├── data/
@@ -30,11 +22,11 @@ The notebooks currently use `df.head(10)`, so their default runs evaluate the fi
 └── output/
     ├── claude-opus-4-5-20251101/
     ├── gpt-4o-2024-08-06/
-    ├── gpt-5.6-sol/
+    ├── gpt-5-mini/
     └── llama3.2-1b/
 ```
 
-The `output/` subdirectories are generated from the model selected in each notebook. Checkpoints and result files therefore remain separated when the model changes.
+The tree includes the local `.env` file, local `data/`, and generated `output/` directories; these are excluded from Git and are not supplied with the repository. The `output/` subdirectories are generated from the model selected in each notebook. Checkpoints and result files therefore remain separated when the model changes.
 
 ## Dataset
 
@@ -50,18 +42,34 @@ It contains 331 (after removing errors it contains 325) rows and three columns:
 | --- | --- |
 | `ID` | Unique question identifier used as the checkpoint key |
 | `Question` | Calculus I multiple-choice question and options in HTML with embedded LaTeX math format |
-| `Correct Answer` | Expected answer-choice letter |
+| `Correct Answer` | Expected lowercase answer-choice letter, or `NA` when no listed solution matches |
 
-All notebooks locate the dataset relative to the repository root, so they can be launched from either the root directory or `notebooks/`.
+All notebooks locate the dataset relative to the repository root, so they can be launched from either the root directory or `notebooks/`. They load CSV files with `keep_default_na=False` to preserve literal `NA` values, summarize the dataset, and inspect duplicate rows, questions, and IDs.
 
 ## Evaluation notebooks
 
 | Notebook | Default model | Response strategy | Service |
 | --- | --- | --- | --- |
 | `openai-unstructured-output-test.ipynb` | `gpt-4o-2024-08-06` | Generates a free-form solution, then uses `gpt-4o-mini` to extract a structured answer letter | OpenAI API |
-| `openai-structured-output-test.ipynb` | `gpt-5-mini` | Uses the Responses API and validates it locally with Pydantic | OpenAI API |
+| `openai-structured-output-test.ipynb` | `gpt-5-mini` | Prompts the Responses API for JSON with web search disabled and validates the response locally with Pydantic | OpenAI API |
 | `claude-structured-output-test.ipynb` | `claude-opus-4-5-20251101` | Uses `client.messages.parse()` with a Pydantic output model | Anthropic API |
 | `ollama-unstructured-output-test.ipynb` | `llama3.2:1b` + `gpt-4o-mini` | Ollama generates a free-form solution; `gpt-4o-mini` extracts the answer letter with structured output | Ollama + OpenAI APIs |
+
+### Shared notebook structure and instructions
+
+All four notebooks have the same seven sections:
+
+1. Imports and configuration.
+2. Provider clients and response schemas.
+3. Load and inspect the dataset.
+4. Primary-model response pipeline, including the example and system instructions.
+5. Prepare answer choices.
+6. Normalize and evaluate answers.
+7. Export results.
+
+The few-shot example and core `SYSTEM_PROMPT` are identical across the notebooks. Each model must explain its solution and return the matching option letter. If no listed solution matches the calculation, it must return `NA`, including when a “None of the above” option exists. `RESPONSE_FORMAT_INSTRUCTIONS` specifies JSON fields for the structured workflows and a plain-text `Final answer: <option letter>` or `Final answer: NA` line for the unstructured workflows.
+
+In section 5, structured workflows read answers from their checkpoints. Unstructured workflows use the extraction model to identify the final answer and preserve `NA`. All four then use the same normalization and evaluation code.
 
 ### OpenAI unstructured output
 
@@ -80,7 +88,7 @@ The primary responses are checkpointed before extraction. A complete 10-question
 
 Changing `MODEL_NAME` changes the output directory and model portion of the generated filenames; `RUN_NAME` can also be adjusted.
 
-This workflow uses `OPENAI_API_KEY`, makes billable API calls, and may have higher latency and cost than a standard completion.
+This workflow prompts the Responses API to return JSON and validates the result locally with Pydantic; it does not request API-enforced structured output. Web search is disabled; the request includes no tools. It uses `OPENAI_API_KEY` and makes billable API calls.
 
 ### Claude structured output
 
@@ -94,7 +102,7 @@ It uses `ANTHROPIC_API_KEY` and makes billable Anthropic API calls.
 
 [Open the notebook](notebooks/ollama-unstructured-output-test.ipynb)
 
-This notebook keeps the primary Ollama request unstructured because schema-constrained Ollama generations can stall. Ollama produces a free-form solution with temperature `0`; a separate `gpt-4o-mini` call then extracts `correct_option_choice_letter` using OpenAI structured output.
+This notebook uses an unstructured primary Ollama request. Ollama produces a free-form solution with temperature `0`; a separate `gpt-4o-mini` call then extracts `correct_option_choice_letter` using OpenAI structured output.
 
 The primary solution is checkpointed before extraction. A complete 10-question run can make up to 10 local Ollama calls and 10 billable OpenAI extraction calls. This workflow requires both a running local Ollama model and `OPENAI_API_KEY`.
 
@@ -108,18 +116,19 @@ Ollama must be installed, its server must be running, and the selected model mus
 
 ## Installation
 
-Python 3.10 or newer is recommended. The notebooks were last saved with a Python 3.10 kernel.
+The latest dependency resolution and offline notebook checks used Python 3.11 on macOS ARM64. Use Python 3.11 to match that validation environment. The saved notebook metadata still names a Python 3.10 kernel; select the environment created below when running the notebooks.
 
 Create and activate a virtual environment:
 
 ```bash
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 ```
 
-On Windows PowerShell, activate it with:
+On Windows PowerShell, create and activate it with:
 
 ```powershell
+py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
@@ -139,16 +148,18 @@ jupyter lab
 
 Select the **Calculus LLM Eval** kernel when opening a notebook.
 
+`requirements.txt` is the source of truth for package minimum versions, including the updated JupyterLab and `python-dotenv` security minimums. It is not a pinned lockfile; fresh installations can resolve newer package versions.
+
 ## Environment variables
 
-Copy `.env.example` to `.env` in the repository root and fill in the required values:
+Create a `.env` file in the repository root and fill in the required values:
 
 ```dotenv
 OPENAI_API_KEY=your_openai_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 ```
 
-Only add the key needed by the notebook you intend to run. The Ollama notebook also needs `OPENAI_API_KEY` for its `gpt-4o-mini` extraction stage.
+Each notebook explicitly loads `.env` from `PROJECT_ROOT`; existing process environment variables take precedence. Only add the key needed by the notebook you intend to run. The Ollama notebook also needs `OPENAI_API_KEY` for its `gpt-4o-mini` extraction stage.
 
 Never commit `.env` or share its contents. API keys should be revoked and replaced immediately if exposed.
 
@@ -210,7 +221,7 @@ Structured-output checkpoints from Claude and the OpenAI Responses workflow stor
 }
 ```
 
-The unstructured OpenAI checkpoint stores the primary response before answer extraction:
+The unstructured OpenAI and Ollama checkpoints store the primary response before answer extraction:
 
 ```json
 {
@@ -221,7 +232,9 @@ The unstructured OpenAI checkpoint stores the primary response before answer ext
 ```
 
 
-To rerun questions with the same model, move or rename the existing checkpoint first, or deliberately delete it after preserving anything needed. Changing `MODEL_NAME` automatically selects a different model-specific output directory.
+To rerun questions with the same model, choose a new `RUN_NAME` or move the existing checkpoint after preserving anything needed. Use a new `RUN_NAME` after changing prompts, examples, or the dataset: checkpoints are matched by question ID and do not detect those changes. Changing `MODEL_NAME` automatically selects a different model-specific output directory.
+
+Only primary-model responses are checkpointed. Rerunning section 5 in either unstructured notebook makes new billable extraction calls for each non-empty solution.
 
 ## Result files
 
@@ -234,12 +247,14 @@ The complete result CSV contains the source fields plus generated evaluation fie
 | `Correct Answer` | Ground-truth choice |
 | `LLM Answer Explanation` | Generated solution or explanation |
 | `LLM Answer Choice (RAW)` | Provider response before final letter normalization |
-| `LLM Answer Choice` | Normalized answer-choice letter |
+| `LLM Answer Choice` | Lowercase option letter, `NA`, or an empty string for an invalid/missing prediction |
 | `Correct` | `1` when the prediction matches the answer key, otherwise `0` |
 
 The `-test-output-incorrect.csv` file contains only rows where `Correct == 0`.
 
-The workflows report accuracy, weighted precision, weighted recall, weighted F1, and a classification report.
+The workflows report accuracy, weighted precision, weighted recall, weighted F1, and a classification report. `NA` is preserved as an answer label and counts as correct only when the answer key is also `NA`. Malformed answer JSON, non-string values, and unsupported answer text normalize to an empty string; they are not converted to `NA`. Missing or invalid predictions remain in the evaluation.
+
+When reloading result CSVs with pandas, use `pd.read_csv(path, keep_default_na=False)` to preserve the literal `NA` label.
 
 ## Troubleshooting
 
@@ -285,16 +300,16 @@ Provider output may occasionally violate the schema. The Claude notebook catches
 - [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses)
 - [OpenAI structured outputs](https://platform.openai.com/docs/guides/structured-outputs)
 - [Anthropic structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
-- [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs)
+- [Ollama unstructured chat responses](https://docs.ollama.com/api/chat)
 
 ## Publication and data handling
 
 The repository ignores `.env` files, local datasets, generated responses, and notebook checkpoints. These exclusions do not remove files already committed to Git. Clear all notebook outputs before committing; outputs can contain dataset questions, answers, local paths, or service errors.
 
-Use only data approved for the selected provider. OpenAI and Claude workflows send questions to external APIs; the Ollama workflow sends generated solutions to OpenAI for answer extraction. The OpenAI Responses notebook also enables web search, so it should not receive confidential exam material.
+Use only data approved for the selected provider. OpenAI and Claude workflows send questions to external APIs; the Ollama workflow sends generated solutions to OpenAI for answer extraction. Web search is disabled in the OpenAI Responses notebook, but questions are still sent to OpenAI for inference.
 
 Treat generated CSV text as untrusted when opening it in spreadsheet software: import text columns as text to avoid interpreting formula-like content. Keep the Ollama server local and retain Jupyter authentication.
 
-Before each release, audit a fresh dependency resolution with `pip-audit -r requirements.txt` and scan the complete Git history for secrets. Requirements specify minimum versions rather than a reproducible lock; record the installed versions used for published experiments.
+Before each release, install `pip-audit` in a separate audit environment, audit a fresh dependency resolution with `pip-audit -r requirements.txt`, and scan the complete Git history for secrets. Requirements specify minimum versions rather than a reproducible lock; record the installed versions used for published experiments.
 
 Choose an appropriate code license and confirm permission to distribute the dataset and the few-shot example before publication. The repository currently contains no license file.
