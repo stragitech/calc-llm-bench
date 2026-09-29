@@ -26,11 +26,11 @@ The notebooks currently use `df.head(10)`, so their default runs evaluate the fi
     └── llama3.2-1b/
 ```
 
-The tree includes the local `.env` file, local `data/`, and generated `output/` directories; these are excluded from Git and are not supplied with the repository. The `output/` subdirectories are generated from the model selected in each notebook. Checkpoints and result files therefore remain separated when the model changes.
+The tree includes the local `.env` file, and generated `output/` directories; these are excluded from Git and are not supplied with the repository. The `output/` subdirectories are generated from the model selected in each notebook. Checkpoints and result files therefore remain separated when the model changes.
 
 ## Dataset
 
-The dataset is not distributed with this repository. Obtain an authorized copy and place it at:
+The dataset is distributed with this repository and was authorized for public release
 
 ```text
 data/input_data.csv
@@ -303,7 +303,7 @@ Provider output may occasionally violate the schema. The Claude notebook catches
 
 ## Publication and data handling
 
-The repository ignores `.env` files, local datasets, generated responses, and notebook checkpoints. These exclusions do not remove files already committed to Git. Clear all notebook outputs before committing; outputs can contain dataset questions, answers, local paths, or service errors.
+The repository ignores `.env` files, generated responses, and notebook checkpoints. These exclusions do not remove files already committed to Git. Clear all notebook outputs before committing; outputs can contain dataset questions, answers, local paths, or service errors.
 
 Use only data approved for the selected provider. OpenAI and Claude workflows send questions to external APIs; the Ollama workflow sends generated solutions to OpenAI for answer extraction. Web search is disabled in the OpenAI Responses notebook, but questions are still sent to OpenAI for inference.
 
