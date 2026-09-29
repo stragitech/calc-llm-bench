@@ -11,6 +11,7 @@ The notebooks currently use `df.head(10)`, so their default runs evaluate the fi
 ├── .env
 ├── .gitignore
 ├── README.md
+├── DATA.md
 ├── requirements.txt
 ├── data/
 │   └── input_data.csv
@@ -30,7 +31,7 @@ The tree includes the local `.env` file, and generated `output/` directories; th
 
 ## Dataset
 
-The dataset is distributed with this repository and was authorized for public release
+The dataset is distributed with this repository and was authorized for public release. Copyright stays with the University of Houston. Use of `data/` is limited to model evaluation. See [DATA.md](DATA.md).
 
 ```text
 data/input_data.csv
