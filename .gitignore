@@ -6,7 +6,7 @@
 *.key
 
 # Datasets and generated model responses require review before publication.
-/data/
+
 /output/
 
 # Notebook and Python runtime artifacts
